@@ -98,9 +98,7 @@ private struct HatchStep: View {
     @ObservedObject var onboarding: Onboarding
     @ObservedObject var settings: AppSettings
     @ObservedObject var animator: PetAnimator
-    @State private var wobble = 0
-    @State private var crack = 0
-    @State private var hatching = false
+    @State private var idleWobble = 0
     @State private var copied = false
 
     var body: some View {
@@ -127,8 +125,10 @@ private struct HatchStep: View {
                 }
                 .buttonStyle(PixelButtonStyle())
             } else {
-                CellCanvas(cells: Sprite.eggCells(palette: settings.palette, wobble: wobble, crack: crack), pixel: 7)
-                PixelText(hatching ? "IT'S HATCHING!" : "SOMETHING IS INSIDE...", pixel: 2.5)
+                CellCanvas(cells: Sprite.eggCells(palette: settings.palette,
+                                                  wobble: onboarding.hatching ? onboarding.eggWobble : idleWobble,
+                                                  crack: onboarding.eggCrack), pixel: 7)
+                PixelText(onboarding.hatching ? "IT'S HATCHING!" : "SOMETHING IS INSIDE...", pixel: 2.5)
                 Text("Every egg is unique. Its colors come from a random seed, and some are rare.")
                     .font(.system(size: 12))
                     .foregroundStyle(Theme.muted)
@@ -137,11 +137,11 @@ private struct HatchStep: View {
                     PixelText("HATCH", pixel: 2.5, color: settings.palette.body.color)
                 }
                 .buttonStyle(PixelButtonStyle())
-                .disabled(hatching)
+                .disabled(onboarding.hatching)
             }
         }
         .frame(maxWidth: .infinity)
-        .task { await idleWobble() }
+        .task { await wobbleWhileWaiting() }
     }
 
     private var rarityBlurb: String {
@@ -152,30 +152,20 @@ private struct HatchStep: View {
         }
     }
 
-    private func idleWobble() async {
+    private func wobbleWhileWaiting() async {
         while !Task.isCancelled, !onboarding.hatched {
             try? await Task.sleep(for: .seconds(1.6))
-            guard !hatching else { continue }
+            guard !onboarding.hatching else { continue }
             for w in [1, -1, 1, 0] {
-                wobble = w
+                idleWobble = w
                 try? await Task.sleep(for: .milliseconds(90))
             }
         }
     }
 
     private func hatch() {
-        hatching = true
         Task {
-            for i in 0..<10 {
-                wobble = i % 2 == 0 ? 1 : -1
-                try? await Task.sleep(for: .milliseconds(70))
-            }
-            wobble = 0
-            crack = 1
-            try? await Task.sleep(for: .milliseconds(400))
-            crack = 2
-            try? await Task.sleep(for: .milliseconds(400))
-            onboarding.hatch()
+            await onboarding.playHatch()
             animator.legendary = settings.palette.rarity == .legendary
             animator.mood = .happy
         }

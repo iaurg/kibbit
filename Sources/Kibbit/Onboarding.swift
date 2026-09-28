@@ -25,6 +25,9 @@ final class Onboarding: ObservableObject {
 
     @Published var step: Step = .hatch
     @Published private(set) var hatched = false
+    @Published private(set) var hatching = false
+    @Published private(set) var eggWobble = 0
+    @Published private(set) var eggCrack = 0
     @Published private(set) var claude: ClaudeCheck = .checking
     @Published private(set) var hotKey: HotKeyCheck = .waiting
     @Published var launchAtLogin = true
@@ -41,6 +44,23 @@ final class Onboarding: ObservableObject {
     var isWaitingForHotKey: Bool { step == .hotKey && hotKey != .received }
 
     func hatch() { hatched = true }
+
+    /// Shake, crack twice, then reveal.
+    func playHatch() async {
+        guard !hatched, !hatching else { return }
+        hatching = true
+        for i in 0..<10 {
+            eggWobble = i % 2 == 0 ? 1 : -1
+            try? await Task.sleep(for: .milliseconds(70))
+        }
+        eggWobble = 0
+        for stage in 1...2 {
+            eggCrack = stage
+            try? await Task.sleep(for: .milliseconds(400))
+        }
+        hatching = false
+        hatched = true
+    }
 
     func next() {
         guard let following = Step(rawValue: step.rawValue + 1) else { return }
