@@ -131,10 +131,42 @@ struct SpriteTests {
         #expect(Sprite.eggCells(palette: palette).contains { $0.color == palette.body })
     }
 
-    @Test @MainActor func menuBarImageSize() {
+    @Test @MainActor func menuBarImageIsJustThePet() {
         let image = Sprite.menuBarImage(pet: .frog, palette: PetPalette(seed: 3, pet: .frog), frame: PetFrame())
-        #expect(image.size == NSSize(width: Sprite.width, height: Sprite.height))
+        #expect(image.size == NSSize(width: Sprite.menuBarWidth, height: Sprite.height))
         #expect(!image.isTemplate, "colored sprites must not be tinted by the menu bar")
+    }
+
+    /// Equal margins in the menu bar: the pet fills the icon edge to edge, so macOS's padding is symmetric.
+    @Test(arguments: PetKind.allCases)
+    func menuBarPetIsCentered(pet: PetKind) {
+        let xs = Sprite.menuBarCells(pet: pet, palette: PetPalette(seed: 1, pet: pet), frame: PetFrame()).map(\.x)
+        #expect(xs.min() == 0)
+        #expect(xs.max() == Sprite.menuBarWidth - 1)
+    }
+
+    @Test(arguments: PetKind.allCases)
+    func menuBarBadgesStayInside(pet: PetKind) {
+        let palette = PetPalette(seed: 2, pet: pet)
+        let overlays: [Overlay] = [.dots(1), .dots(3), .heart, .zzz(0), .zzz(1), .zzz(2), .bang, .sparkle]
+        for overlay in overlays {
+            for y in 0...2 {
+                let cells = Sprite.menuBarCells(pet: pet, palette: palette, frame: PetFrame(y: y, overlay: overlay))
+                #expect(cells.allSatisfy { (0..<Sprite.menuBarWidth).contains($0.x) && (0..<Sprite.height).contains($0.y) })
+            }
+        }
+    }
+
+    @Test func menuBarBadgeDrawsOnTopWithOutline() {
+        let palette = PetPalette(seed: 4, pet: .cat)
+        let bare = Sprite.menuBarCells(pet: .cat, palette: palette, frame: PetFrame())
+        let badged = Sprite.menuBarCells(pet: .cat, palette: palette, frame: PetFrame(overlay: .heart))
+        let badge = badged.dropFirst(bare.count)
+        let heart = RGB(r: 1, g: 0.3, b: 0.43)
+        #expect(badge.filter { $0.color == heart }.count == 6)
+        #expect(badge.contains { $0.color == palette.outline }, "outline ring separates the badge from the pet")
+        #expect(badged.last?.color == heart, "glyph paints last, over pet and ring")
+        #expect(Sprite.menuBarCells(pet: .cat, palette: palette, frame: PetFrame(overlay: .dots(0))).count == bare.count)
     }
 }
 

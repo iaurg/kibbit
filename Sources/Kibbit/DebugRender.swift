@@ -29,6 +29,31 @@ enum DebugRender {
         }
     }
 
+    /// Every pet's menu bar icon in every mood, on light and dark menu bar backgrounds.
+    static func menuBarSheet(to path: String) {
+        let moods = [PetFrame(), PetFrame(overlay: .dots(3)), PetFrame(y: 0, overlay: .heart),
+                     PetFrame(y: 2, eyesClosed: true, overlay: .zzz(0)), PetFrame(y: 2, overlay: .bang), PetFrame(overlay: .sparkle)]
+        let pixel: CGFloat = 8
+        let cellW = CGFloat(Sprite.menuBarWidth + 8) * pixel, cellH = CGFloat(Sprite.height + 4) * pixel
+        let size = CGSize(width: cellW * CGFloat(moods.count * 2), height: cellH * CGFloat(PetKind.allCases.count))
+        write(size: size, to: path) { ctx in
+            for (half, bg) in [(0, 0.93), (1, 0.12)] {
+                ctx.setFillColor(CGColor(gray: bg, alpha: 1))
+                ctx.fill(CGRect(x: CGFloat(half) * size.width / 2, y: 0, width: size.width / 2, height: size.height))
+            }
+            for (row, pet) in PetKind.allCases.enumerated() {
+                let palette = PetPalette(seed: 42, pet: pet)
+                for half in 0..<2 {
+                    for (i, mood) in moods.enumerated() {
+                        let x = CGFloat(half * moods.count + i) * cellW + 4 * pixel
+                        Sprite.draw(Sprite.menuBarCells(pet: pet, palette: palette, frame: mood), in: ctx, pixel: pixel,
+                                    originX: x, originY: CGFloat(row) * cellH + 2 * pixel)
+                    }
+                }
+            }
+        }
+    }
+
     /// Writes the PNG sizes `iconutil` expects for an .iconset folder.
     static func iconset(to dir: String) {
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)

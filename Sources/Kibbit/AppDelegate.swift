@@ -77,7 +77,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Menu bar icon
 
     private func makeStatusItem() {
-        statusItem = NSStatusBar.system.statusItem(withLength: CGFloat(Sprite.width) + 4)
+        // Sized to the 16px pet image; macOS adds the same margins it gives every other icon.
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
             button.imagePosition = .imageOnly
             button.target = self
