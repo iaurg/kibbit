@@ -9,18 +9,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var store = ChatStore(settings: settings, animator: animator)
     private let hotKey = HotKey()
     private var statusItem: NSStatusItem!
+    private var occlusionObserver: NSObjectProtocol?
+    private let placement = StatusItemPlacement(defaults: .standard)
     private var panel: PetPanel!
     private var lastDismiss = Date.distantPast
     private var bag: Set<AnyCancellable> = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        statusItem = NSStatusBar.system.statusItem(withLength: CGFloat(Sprite.width) + 4)
-        if let button = statusItem.button {
-            button.imagePosition = .imageOnly
-            button.target = self
-            button.action = #selector(statusClicked)
-            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-        }
+        placement.seedIfNeeded()
+        makeStatusItem()
+        store.moveMenuBarIconRight = { [weak self] in self?.moveStatusItemRight() }
 
         let root = RootView(store: store) { [weak self] in self?.dismiss() }
         let hosting = NSHostingView(rootView: root)
@@ -36,9 +34,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         animator.legendary = settings.palette.rarity == .legendary
         Publishers.CombineLatest3(animator.$frame, settings.$pet, settings.$seed)
-            .sink { [weak self] frame, pet, seed in
-                self?.statusItem.button?.image = Sprite.menuBarImage(pet: pet, palette: PetPalette(seed: seed, pet: pet), frame: frame)
-            }
+            // @Published emits before the property changes, so draw from the emitted values.
+            .sink { [weak self] frame, pet, seed in self?.drawStatusIcon(pet: pet, seed: seed, frame: frame) }
             .store(in: &bag)
 
         // Model/token edits respawn the warm process; debounce so typing in Settings doesn't thrash it.
@@ -75,6 +72,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             store.input = args[i + 1]
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { self.store.send() }
         }
+    }
+
+    // MARK: - Menu bar icon
+
+    private func makeStatusItem() {
+        // Sized to the 16px pet image; macOS adds the same margins it gives every other icon.
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        if let button = statusItem.button {
+            button.imagePosition = .imageOnly
+            button.target = self
+            button.action = #selector(statusClicked)
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        }
+        drawStatusIcon(pet: settings.pet, seed: settings.seed, frame: animator.frame)
+        // macOS lays out the menu bar asynchronously; judge visibility once it has settled,
+        // and again whenever it changes (apps added or removed, display switched).
+        if let old = occlusionObserver { NotificationCenter.default.removeObserver(old) }
+        occlusionObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didChangeOcclusionStateNotification, object: statusItem.button?.window, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.checkStatusItemVisibility() }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.checkStatusItemVisibility() }
+    }
+
+    private func drawStatusIcon(pet: PetKind, seed: UInt64, frame: PetFrame) {
+        statusItem?.button?.image = Sprite.menuBarImage(pet: pet, palette: PetPalette(seed: seed, pet: pet), frame: frame)
+    }
+
+    private func checkStatusItemVisibility() {
+        let visible = statusItem.button?.window?.occlusionState.contains(.visible) ?? false
+        if placement.shouldAutoMove(visible: visible) {
+            moveStatusItemRight()
+            return
+        }
+        store.menuBarIconHidden = !visible
+    }
+
+    /// Recreating the item makes AppKit re-read the preferred position we just wrote.
+    private func moveStatusItemRight() {
+        NSStatusBar.system.removeStatusItem(statusItem)
+        placement.prepareMoveRight()
+        makeStatusItem()
     }
 
     private func registerHotKey(_ preset: HotKeyPreset) {

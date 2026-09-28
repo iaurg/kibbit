@@ -26,6 +26,10 @@ final class ChatStore: ObservableObject {
     @Published private(set) var claudeStatus = "Looking for claude…"
     /// Set when macOS rejects the chosen hotkey.
     @Published var hotKeyProblem: String?
+    /// The menu bar icon is hidden (behind the notch, or by a menu bar manager).
+    @Published var menuBarIconHidden = false
+    @Published var hiddenIconNoticeDismissed = false
+    var moveMenuBarIconRight: (() -> Void)?
 
     let settings: AppSettings
     let animator: PetAnimator

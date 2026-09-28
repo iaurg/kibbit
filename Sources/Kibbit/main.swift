@@ -8,6 +8,10 @@ if let i = args.firstIndex(of: "--render-gallery"), i + 1 < args.count {
     DebugRender.gallery(to: args[i + 1])
     exit(0)
 }
+if let i = args.firstIndex(of: "--render-menubar"), i + 1 < args.count {
+    DebugRender.menuBarSheet(to: args[i + 1])
+    exit(0)
+}
 if let i = args.firstIndex(of: "--render-card"), i + 1 < args.count {
     let settings = MainActor.assumeIsolated { AppSettings() }
     let png = MainActor.assumeIsolated { ShareCard.pngData(pet: settings.pet, seed: settings.seed) }

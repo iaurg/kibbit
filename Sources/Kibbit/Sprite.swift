@@ -45,32 +45,67 @@ enum Sprite {
         return out
     }
 
-    private static func overlayCells(_ overlay: Overlay, palette: PetPalette) -> [Cell] {
+    private struct Glyph {
+        let pattern: [String]
+        let color: RGB
+        /// Row offset, used to float the Z upward.
         var top = 0
-        let (pattern, color): ([String], RGB) = switch overlay {
-        case .none:
-            ([], palette.white)
-        case .dots(let n):
-            ([String("x.x.x".prefix(max(0, n * 2 - 1)))], RGB(r: 1, g: 0.75, b: 0.2))
-        case .heart:
-            (["x.x", "xxx", ".x."], RGB(r: 1, g: 0.3, b: 0.43))
-        case .zzz(let step):
-            // The Z drifts upward as the pet snoozes.
-            {
-                top = 2 - step % 3
-                return (["xxx", "..x", ".x.", "x..", "xxx"], RGB(r: 0.55, g: 0.75, b: 1))
-            }()
-        case .bang:
-            (["x", "x", "x", ".", "x"], RGB(r: 1, g: 0.3, b: 0.3))
-        case .sparkle:
-            ([".x.", "xxx", ".x."], RGB(r: 1, g: 0.85, b: 0.3))
-        }
-        var out: [Cell] = []
-        for (row, line) in pattern.enumerated() {
-            for (col, ch) in line.enumerated() where ch == "x" {
-                out.append(Cell(x: 16 + col, y: top + row, color: color))
+
+        var points: [(x: Int, y: Int)] {
+            pattern.enumerated().flatMap { row, line in
+                line.enumerated().compactMap { col, ch in ch == "x" ? (col, top + row) : nil }
             }
         }
+        var width: Int { pattern.first?.count ?? 0 }
+    }
+
+    private static func glyph(for overlay: Overlay) -> Glyph? {
+        switch overlay {
+        case .none: nil
+        case .dots(let n) where n <= 0: nil
+        case .dots(let n): Glyph(pattern: [String("x.x.x".prefix(n * 2 - 1))], color: RGB(r: 1, g: 0.75, b: 0.2))
+        case .heart: Glyph(pattern: ["x.x", "xxx", ".x."], color: RGB(r: 1, g: 0.3, b: 0.43))
+        case .zzz(let step): Glyph(pattern: ["xxx", "..x", ".x.", "x..", "xxx"], color: RGB(r: 0.55, g: 0.75, b: 1), top: 2 - step % 3)
+        case .bang: Glyph(pattern: ["x", "x", "x", ".", "x"], color: RGB(r: 1, g: 0.3, b: 0.3))
+        case .sparkle: Glyph(pattern: [".x.", "xxx", ".x."], color: RGB(r: 1, g: 0.85, b: 0.3))
+        }
+    }
+
+    /// In the chat header and setup there's room beside the pet.
+    private static func overlayCells(_ overlay: Overlay, palette: PetPalette) -> [Cell] {
+        guard let glyph = glyph(for: overlay) else { return [] }
+        return glyph.points.map { Cell(x: 16 + $0.x, y: $0.y, color: glyph.color) }
+    }
+
+    // MARK: Menu bar
+
+    /// The menu bar icon is just the pet, so macOS pads it evenly like any other icon.
+    static let menuBarWidth = 16
+
+    /// Pet plus the overlay as a badge in its top-right corner. The badge gets a 1px outline ring
+    /// so it reads on top of the pet instead of needing its own empty columns.
+    static func menuBarCells(pet: PetKind, palette: PetPalette, frame: PetFrame) -> [Cell] {
+        var bare = frame
+        bare.overlay = .none
+        var out = cells(pet: pet, palette: palette, frame: bare)
+        guard let glyph = glyph(for: frame.overlay) else { return out }
+
+        let x0 = menuBarWidth - glyph.width
+        let points = glyph.points.map { (x: x0 + $0.x, y: $0.y) }
+        var ring: [(x: Int, y: Int)] = []
+        for p in points {
+            for dx in -1...1 {
+                for dy in -1...1 {
+                    let n = (x: p.x + dx, y: p.y + dy)
+                    guard (0..<menuBarWidth).contains(n.x), (0..<height).contains(n.y),
+                          !points.contains(where: { $0 == n }), !ring.contains(where: { $0 == n }) else { continue }
+                    ring.append(n)
+                }
+            }
+        }
+        // Later cells paint over earlier ones, so the badge lands on top of the pet.
+        out += ring.map { Cell(x: $0.x, y: $0.y, color: palette.outline) }
+        out += points.map { Cell(x: $0.x, y: $0.y, color: glyph.color) }
         return out
     }
 
@@ -103,8 +138,8 @@ enum Sprite {
 
     /// Point-per-pixel image sized for the menu bar; on Retina each sprite pixel lands on a crisp 2×2 block.
     static func menuBarImage(pet: PetKind, palette: PetPalette, frame: PetFrame) -> NSImage {
-        let cells = cells(pet: pet, palette: palette, frame: frame)
-        let image = NSImage(size: NSSize(width: width, height: height), flipped: true) { _ in
+        let cells = menuBarCells(pet: pet, palette: palette, frame: frame)
+        let image = NSImage(size: NSSize(width: menuBarWidth, height: height), flipped: true) { _ in
             guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
             ctx.interpolationQuality = .none
             ctx.setShouldAntialias(false)
