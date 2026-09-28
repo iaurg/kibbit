@@ -1,7 +1,10 @@
 #!/bin/bash
 # Builds Kibbit.app into ./build. Pass --install to copy it to /Applications.
+# VERSION and BUILD_NUMBER set the bundle version (release CI passes the git tag).
 set -euo pipefail
 cd "$(dirname "$0")/.."
+VERSION="${VERSION:-0.1.0}"
+BUILD_NUMBER="${BUILD_NUMBER:-1}"
 
 swift build -c release
 BIN="$(swift build -c release --show-bin-path)/Kibbit"
@@ -28,8 +31,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleExecutable</key><string>Kibbit</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>0.1.0</string>
-    <key>CFBundleVersion</key><string>1</string>
+    <key>CFBundleShortVersionString</key><string>${VERSION}</string>
+    <key>CFBundleVersion</key><string>${BUILD_NUMBER}</string>
     <key>LSMinimumSystemVersion</key><string>14.0</string>
     <key>LSUIElement</key><true/>
     <key>NSHighResolutionCapable</key><true/>
