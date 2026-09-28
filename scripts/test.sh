@@ -11,4 +11,5 @@ if [[ "$(xcode-select -p)" == *CommandLineTools* ]]; then
     FLAGS=(-Xswiftc -F -Xswiftc "$F" -Xswiftc -Xfrontend -Xswiftc -disable-cross-import-overlays
            -Xlinker -F -Xlinker "$F" -Xlinker -rpath -Xlinker "$F")
 fi
-swift test "${FLAGS[@]}" "$@"
+# `${FLAGS[@]+...}` because macOS bash 3.2 treats an empty array as unbound under `set -u`.
+swift test ${FLAGS[@]+"${FLAGS[@]}"} "$@"
