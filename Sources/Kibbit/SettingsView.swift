@@ -38,14 +38,25 @@ struct SettingsView: View {
                         }
                         .labelsHidden()
                         .frame(width: 140)
+                        if let problem = store.hotKeyProblem {
+                            Text(problem)
+                                .font(.system(size: 11))
+                                .foregroundStyle(Theme.danger)
+                        } else {
+                            caption("Not opening? Another app may use the same shortcut. Pick another, or run setup to test it.")
+                        }
                     }
                     section("CLAUDE") { claude }
                     section("SYSTEM") {
                         Toggle("Launch at login", isOn: Binding(get: { settings.launchAtLogin }, set: { settings.launchAtLogin = $0 }))
                             .toggleStyle(.checkbox)
                             .foregroundStyle(Theme.text)
-                        Button { NSApp.terminate(nil) } label: { PixelText("QUIT", color: Theme.danger) }
-                            .buttonStyle(PixelButtonStyle())
+                        HStack(spacing: 10) {
+                            Button(action: store.startOnboarding) { PixelText("RUN SETUP AGAIN") }
+                                .buttonStyle(PixelButtonStyle())
+                            Button { NSApp.terminate(nil) } label: { PixelText("QUIT", color: Theme.danger) }
+                                .buttonStyle(PixelButtonStyle())
+                        }
                     }
                 }
                 .padding(14)
@@ -86,7 +97,7 @@ struct SettingsView: View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 6) {
                 PixelText(PetPalette.seedCode(settings.seed), pixel: 2, color: Theme.text)
-                PixelText(settings.palette.rarity.label, pixel: 1.5, color: rarityColor)
+                PixelText(settings.palette.rarity.label, pixel: 1.5, color: settings.palette.rarity.color)
             }
             Spacer()
             Button {
@@ -100,14 +111,6 @@ struct SettingsView: View {
                 }
             }
             .buttonStyle(PixelButtonStyle())
-        }
-    }
-
-    private var rarityColor: Color {
-        switch settings.palette.rarity {
-        case .common: Theme.muted
-        case .rare: Color(red: 0.45, green: 0.75, blue: 1)
-        case .legendary: Color(red: 1, green: 0.85, blue: 0.3)
         }
     }
 

@@ -41,6 +41,19 @@
 ./scripts/build-app.sh --install  # → /Applications/Kibbit.app and launch
 ```
 
+## First launch
+
+Kibbit opens a short setup the first time it runs:
+
+1. **Hatch** your egg. The species and colors are random. You can copy a share card to show it off.
+2. **Connect Claude.** Kibbit checks that Claude Code is installed and signed in. If something is missing, one button opens Terminal with the official installer or `claude auth login` already running, and the page updates on its own when you're done.
+3. **Try the hotkey.** Press it once to prove it works. If another app (Claude Desktop, ChatGPT and Raycast often use `⌥ Space`) catches it first, pick a different one.
+4. **Done.** Launch at login is on by default.
+
+<p align="center"><img src="docs/onboarding.png" width="800" alt="The four setup steps"></p>
+
+To run setup again, right-click the pet and choose **Run Setup…**, or use the button in Settings.
+
 ## Use
 
 | Key | Action |

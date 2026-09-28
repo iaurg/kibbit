@@ -11,6 +11,7 @@ struct RootView: View {
             switch store.page {
             case .chat: ChatView(store: store, settings: store.settings, close: close)
             case .settings: SettingsView(store: store, settings: store.settings)
+            case .onboarding: OnboardingView(store: store, onboarding: store.onboarding, settings: store.settings)
             }
         }
         .frame(width: 380, height: 520)

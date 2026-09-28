@@ -171,3 +171,25 @@ enum PetKind: String, CaseIterable, Identifiable, Codable {
         half.map { Array($0) + Array($0).reversed() }
     }
 }
+
+extension PetKind {
+    /// Shown before hatching. `s` shell, `b` spots in the pet's body color, so the egg hints at what's inside.
+    static let eggGrid: [[Character]] = mirrored([
+        "........",
+        "........",
+        "......oo",
+        ".....oss",
+        "....osss",
+        "....osbb",
+        "...osssb",
+        "...ossss",
+        "..obbsss",
+        "..obbsss",
+        "..ossssb",
+        "..osssbb",
+        "..osssss",
+        "...ossss",
+        "....oooo",
+        "........",
+    ])
+}

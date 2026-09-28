@@ -105,6 +105,32 @@ struct SpriteTests {
         #expect(withHeart.dropFirst(base).allSatisfy { $0.x >= 16 })
     }
 
+    @Test func eggIsWellFormed() {
+        let grid = PetKind.eggGrid
+        #expect(grid.count == 16 && grid.allSatisfy { $0.count == 16 })
+        #expect(grid.allSatisfy { $0 == Array($0.reversed()) })
+        #expect(grid.allSatisfy { row in row.allSatisfy { ".osb".contains($0) } })
+    }
+
+    @Test func eggCracksAndWobblesOnCanvas() {
+        let palette = PetPalette(seed: 5, pet: .cat)
+        for crack in 0..<Sprite.eggCracks.count {
+            for wobble in -1...1 {
+                let cells = Sprite.eggCells(palette: palette, wobble: wobble, crack: crack)
+                #expect(cells.allSatisfy { (0..<Sprite.width).contains($0.x) && (0..<Sprite.height).contains($0.y) })
+            }
+        }
+        // Every crack pixel lands on the shell, so each stage shows more outline and the same shape.
+        let outline = { (crack: Int) in Sprite.eggCells(palette: palette, crack: crack).filter { $0.color == palette.outline }.count }
+        #expect(outline(0) < outline(1) && outline(1) < outline(2))
+        #expect(Sprite.eggCells(palette: palette, crack: 2).count == Sprite.eggCells(palette: palette).count)
+    }
+
+    @Test func eggSpotsHintAtThePet() {
+        let palette = PetPalette(seed: 9, pet: .frog)
+        #expect(Sprite.eggCells(palette: palette).contains { $0.color == palette.body })
+    }
+
     @Test @MainActor func menuBarImageSize() {
         let image = Sprite.menuBarImage(pet: .frog, palette: PetPalette(seed: 3, pet: .frog), frame: PetFrame())
         #expect(image.size == NSSize(width: Sprite.width, height: Sprite.height))
@@ -127,6 +153,10 @@ struct PixelFontTests {
         var strings = [
             "SETTINGS", "PET", "COLORS", "MODEL", "HOTKEY", "CLAUDE", "SYSTEM", "QUIT", "SAVE", "REROLL",
             "STOPPED", "THINKING...", "COPY", "COPIED", "CLIPBOARD", "ASK ME ANYTHING", "CODE",
+            "SETUP", "SKIP", "NEXT", "HATCH", "IT'S HATCHING!", "SOMETHING IS INSIDE...", "COPY SHARE CARD", "CARD COPIED",
+            "CONNECT CLAUDE", "CHECKING...", "INSTALL IN TERMINAL", "SIGN IN IN TERMINAL", "YOU'RE CONNECTED!",
+            "SUMMON ME ANYWHERE", "TRY IT NOW", "GOT IT!", "ALL SET!", "START ASKING", "SKIP FOR NOW",
+            "HATCHED IN KIBBIT", "RUN SETUP AGAIN",
             "bash", "zsh", "sh", "swift", "python", "js", "ts", "json", "yaml", "go", "rust", "sql", "c++", "objective-c",
         ]
         strings += PetKind.allCases.map(\.displayName)

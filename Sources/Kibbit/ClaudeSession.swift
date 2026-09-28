@@ -129,22 +129,10 @@ final class ClaudeSession {
         ]
         if hasHistory, let sessionID { args += ["--resume", sessionID] }
 
-        var env = ProcessInfo.processInfo.environment
-        // Apps launched from Finder get a bare PATH; npm-installed CLIs also need node.
-        let home = NSHomeDirectory()
-        env["PATH"] = ["\(home)/.local/bin", "/opt/homebrew/bin", "/usr/local/bin", env["PATH"] ?? "/usr/bin:/bin"].joined(separator: ":")
-        // Never silently bill an API key: this app is meant to ride the subscription.
-        env.removeValue(forKey: "ANTHROPIC_API_KEY")
-        // --setting-sources "" doesn't cover these: the workspace lives under ~, so the CLI would
-        // otherwise inject the home project's auto-memory and ~/.claude/CLAUDE.md into every question.
-        env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] = "1"
-        env["CLAUDE_CODE_DISABLE_CLAUDE_MDS"] = "1"
-        if !config.token.isEmpty { env["CLAUDE_CODE_OAUTH_TOKEN"] = config.token }
-
         let p = Process()
         p.executableURL = URL(fileURLWithPath: config.binary)
         p.arguments = args
-        p.environment = env
+        p.environment = Self.environment(token: config.token)
         p.currentDirectoryURL = workspace
         let inPipe = Pipe(), outPipe = Pipe(), errPipe = Pipe()
         p.standardInput = inPipe
@@ -242,6 +230,22 @@ final class ClaudeSession {
             guard let self, !self.turnActive else { return }
             self.terminate()
         }
+    }
+
+    /// Environment for every `claude` launch, chats and setup checks alike.
+    static func environment(token: String) -> [String: String] {
+        var env = ProcessInfo.processInfo.environment
+        // Apps launched from Finder get a bare PATH; npm-installed CLIs also need node.
+        let home = NSHomeDirectory()
+        env["PATH"] = ["\(home)/.local/bin", "/opt/homebrew/bin", "/usr/local/bin", env["PATH"] ?? "/usr/bin:/bin"].joined(separator: ":")
+        // Never silently bill an API key: this app is meant to ride the subscription.
+        env.removeValue(forKey: "ANTHROPIC_API_KEY")
+        // --setting-sources "" doesn't cover these: the workspace lives under ~, so the CLI would
+        // otherwise inject the home project's auto-memory and ~/.claude/CLAUDE.md into every question.
+        env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] = "1"
+        env["CLAUDE_CODE_DISABLE_CLAUDE_MDS"] = "1"
+        if !token.isEmpty { env["CLAUDE_CODE_OAUTH_TOKEN"] = token }
+        return env
     }
 
     // MARK: - Locating the CLI
