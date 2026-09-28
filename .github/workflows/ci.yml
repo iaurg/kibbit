@@ -13,7 +13,7 @@ jobs:
   test:
     name: Build & test
     runs-on: macos-15
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -23,8 +23,8 @@ jobs:
       - name: Test
         run: ./scripts/test.sh
 
-      - name: Bundle app
-        run: ./scripts/build-app.sh
+      - name: Bundle app (universal)
+        run: UNIVERSAL=1 ./scripts/build-app.sh
 
       - name: Verify bundle
         run: |
@@ -33,16 +33,35 @@ jobs:
           test "$(/usr/libexec/PlistBuddy -c 'Print :LSUIElement' "$APP/Contents/Info.plist")" = "true"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Contents/Info.plist")" = "dev.kibbit.Kibbit"
           test -s "$APP/Contents/Resources/AppIcon.icns"
+          lipo "$APP/Contents/MacOS/Kibbit" -verify_arch arm64 x86_64
           codesign --verify --strict --verbose=2 "$APP"
           # The release binary must launch and render every sprite.
           "$APP/Contents/MacOS/Kibbit" --render-gallery pets.png
           test -s pets.png
+
+      - name: Package & test installer
+        run: ./scripts/package.sh
+
+      - name: Test uninstaller
+        run: |
+          DIR="$(mktemp -d)"
+          KIBBIT_BASE_URL="file://$PWD/dist" KIBBIT_DIR="$DIR" KIBBIT_NO_OPEN=1 ./install.sh
+          test -d "$DIR/Kibbit.app"
+          KIBBIT_DIR="$DIR" ./install.sh --uninstall
+          test ! -e "$DIR/Kibbit.app"
 
       - name: Upload app
         uses: actions/upload-artifact@v4
         with:
           name: Kibbit-${{ github.sha }}
           path: |
-            build/Kibbit.app
+            dist/
             pets.png
           retention-days: 14
+
+  lint:
+    name: Shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: shellcheck install.sh scripts/*.sh Tests/KibbitTests/Fixtures/fake-claude

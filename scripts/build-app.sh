@@ -1,13 +1,24 @@
 #!/bin/bash
 # Builds Kibbit.app into ./build. Pass --install to copy it to /Applications.
 # VERSION and BUILD_NUMBER set the bundle version (release CI passes the git tag).
+# UNIVERSAL=1 builds for Apple Silicon and Intel (each arch separately, then lipo, which
+# works with only the Command Line Tools, unlike a multi-arch `swift build`).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 VERSION="${VERSION:-0.1.0}"
 BUILD_NUMBER="${BUILD_NUMBER:-1}"
 
-swift build -c release
-BIN="$(swift build -c release --show-bin-path)/Kibbit"
+if [[ "${UNIVERSAL:-0}" == "1" ]]; then
+    for arch in arm64 x86_64; do swift build -c release --arch "$arch"; done
+    BIN=".build/universal/Kibbit"
+    mkdir -p "$(dirname "$BIN")"
+    lipo -create -output "$BIN" \
+        "$(swift build -c release --arch arm64 --show-bin-path)/Kibbit" \
+        "$(swift build -c release --arch x86_64 --show-bin-path)/Kibbit"
+else
+    swift build -c release
+    BIN="$(swift build -c release --show-bin-path)/Kibbit"
+fi
 APP="build/Kibbit.app"
 
 rm -rf "$APP"
