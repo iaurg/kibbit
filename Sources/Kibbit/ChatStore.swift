@@ -30,10 +30,10 @@ final class ChatStore: ObservableObject {
     private let session: ClaudeSession
     private var binary: String?
 
-    init(settings: AppSettings, animator: PetAnimator) {
+    init(settings: AppSettings, animator: PetAnimator, workspace: URL = ClaudeSession.defaultWorkspace) {
         self.settings = settings
         self.animator = animator
-        session = ClaudeSession(config: .init(binary: "", model: settings.model.rawValue, token: settings.token))
+        session = ClaudeSession(config: .init(binary: "", model: settings.model.rawValue, token: settings.token), workspace: workspace)
         session.onEvent = { [weak self] event in
             MainActor.assumeIsolated { self?.handle(event) }
         }

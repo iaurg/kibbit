@@ -11,6 +11,10 @@
 <p align="center"><i>kibble + kibitz: a pet that chimes in with answers.</i></p>
 
 <p align="center">
+  <a href="https://github.com/iaurg/kibbit/actions/workflows/ci.yml"><img src="https://github.com/iaurg/kibbit/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+</p>
+
+<p align="center">
   <img src="docs/screenshot-chat.png" width="440" alt="Asking the pet a question">
   <img src="docs/screenshot-settings.png" width="380" alt="Choosing a pet and rerolling its colors">
 </p>
@@ -63,11 +67,36 @@ The warm process shuts down after 15 idle minutes. Your next question resumes th
 
 ```bash
 swift build
+./scripts/test.sh                                    # Swift Testing suite
 .build/debug/Kibbit --render-gallery /tmp/pets.png   # all pets × seeds × animation frames
 open build/Kibbit.app --args --ask "question"        # smoke test: opens the panel and sends
 ```
 
 Sprites live in `Sources/Kibbit/Pets.swift` as the left halves of 16×16 grids, mirrored when drawn.
+
+### Tests
+
+`./scripts/test.sh` works with Xcode or with only the Command Line Tools. The suite covers:
+
+- **Sprites and palettes:** every pet grid is well-formed and symmetric, all animation frames stay on the canvas, seeds are deterministic, and the rarity odds (3% legendary, 15% rare) hold.
+- **Stream parsing:** the `claude` stream-JSON output, including lines split across chunks and error results.
+- **Process lifecycle:** runs against [`Tests/KibbitTests/Fixtures/fake-claude`](Tests/KibbitTests/Fixtures/fake-claude), a stand-in CLI, so no Claude login is needed. Covers streaming, stop, crash recovery, `--resume`, model switches, and the launch flags that keep tools, memory and API keys out.
+- **Chat flow:** send, answer, error, stop and new chat through the real view model.
+
+### CI/CD
+
+- **[CI](.github/workflows/ci.yml)** runs on every pull request and every push to `main`. It runs the tests, bundles `Kibbit.app`, checks the Info.plist and code signature, launches the release binary, and uploads the app as a build artifact.
+- **[Release](.github/workflows/release.yml)** runs when a `v*` tag is pushed. It runs the tests again, builds the app with the tag as its version, and publishes a zipped `Kibbit.app` to GitHub Releases:
+
+  ```bash
+  git tag v0.1.0 && git push origin v0.1.0
+  ```
+
+Release builds are ad-hoc signed, not notarized. After downloading one, clear the quarantine flag once:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Kibbit.app
+```
 
 ## License
 

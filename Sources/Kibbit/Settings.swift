@@ -29,7 +29,7 @@ struct HotKeyPreset: Identifiable, Equatable {
 
 @MainActor
 final class AppSettings: ObservableObject {
-    private let defaults = UserDefaults.standard
+    private let defaults: UserDefaults
 
     @Published var pet: PetKind { didSet { defaults.set(pet.rawValue, forKey: "pet") } }
     @Published var seed: UInt64 { didSet { defaults.set(String(seed), forKey: "seed") } }
@@ -38,7 +38,8 @@ final class AppSettings: ObservableObject {
     @Published var claudePath: String { didSet { defaults.set(claudePath, forKey: "claudePath") } }
     @Published var token: String { didSet { Keychain.set(token, account: "oauth-token") } }
 
-    init() {
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         pet = PetKind(rawValue: defaults.string(forKey: "pet") ?? "") ?? .cat
         model = ClaudeModel(rawValue: defaults.string(forKey: "model") ?? "") ?? .haiku
         hotKeyID = defaults.string(forKey: "hotKey") ?? HotKeyPreset.all[0].id

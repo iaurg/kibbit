@@ -1,0 +1,39 @@
+#!/bin/bash
+# Test double for `claude -p` in stream-JSON mode. Records how it was launched into its
+# working directory, then answers each stdin message based on a keyword in the prompt.
+# Write-then-rename so tests never read a half-written file.
+printf '%s\n' "$@" > launch-args.tmp && mv launch-args.tmp launch-args.txt
+env > launch-env.tmp && mv launch-env.tmp launch-env.txt
+
+echo '{"type":"system","subtype":"init","session_id":"fake-session-1"}'
+
+delta() {
+    printf '{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"%s"}}}\n' "$1"
+}
+
+while IFS= read -r line; do
+    case "$line" in
+    *'"interrupt"'*)
+        echo '{"type":"control_response","response":{"subtype":"success"}}'
+        echo '{"type":"result","subtype":"error_during_execution","is_error":false}'
+        ;;
+    *crash*)
+        echo "fake-claude: simulated failure" >&2
+        exit 3
+        ;;
+    *fail*)
+        echo '{"type":"result","subtype":"success","is_error":true,"result":"Not logged in · Please run /login"}'
+        ;;
+    *slow*)
+        # Never finishes on its own; waits for an interrupt.
+        delta "Working"
+        ;;
+    *)
+        echo '{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"hmm"}}}'
+        delta "Hello"
+        delta ", world"
+        echo '{"type":"rate_limit_event","rate_limit_info":{"unifiedWindows":{"five_hour":{"utilization":0.25}}}}'
+        echo '{"type":"result","subtype":"success","is_error":false,"result":"Hello, world"}'
+        ;;
+    esac
+done

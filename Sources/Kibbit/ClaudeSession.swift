@@ -12,7 +12,7 @@ final class ClaudeSession {
         var token: String
     }
 
-    enum Event {
+    enum Event: Equatable {
         case delta(String)
         case finished(text: String?, error: String?, stopped: Bool)
         case usage(fiveHour: Double)
@@ -33,8 +33,7 @@ final class ClaudeSession {
     private var config: Config
     private var process: Process?
     private var stdin: FileHandle?
-    private var stdout = Data()
-    private var stderrTail = ""
+    private var parser = StreamParser()
     private var generation = 0
     private var sessionID: String?
     private var hasHistory = false
@@ -42,15 +41,19 @@ final class ClaudeSession {
     private var stopRequested = false
     private var idleTimer: Timer?
 
-    private let workspace: URL = {
-        let url = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Kibbit/workspace", isDirectory: true)
-        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-        return url
-    }()
+    private let workspace: URL
 
-    init(config: Config) {
+    static let defaultWorkspace = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("Kibbit/workspace", isDirectory: true)
+
+    init(config: Config, workspace: URL = ClaudeSession.defaultWorkspace) {
         self.config = config
+        self.workspace = workspace
+        try? FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+    }
+
+    deinit {
+        process?.terminate()
     }
 
     var isRunning: Bool { process?.isRunning == true }
@@ -155,14 +158,20 @@ final class ClaudeSession {
             if data.isEmpty { h.readabilityHandler = nil }
             DispatchQueue.main.async { self?.ingest(data, gen: gen) }
         }
-        errPipe.fileHandleForReading.readabilityHandler = { [weak self] h in
-            let data = h.availableData
-            if data.isEmpty { h.readabilityHandler = nil }
-            DispatchQueue.main.async { self?.ingestError(data, gen: gen) }
+        // stderr only matters once the process dies (e.g. "Not logged in"). Reading it to EOF and
+        // handing it over with the exit avoids racing two async callbacks.
+        let stderrDone = DispatchGroup()
+        var stderrData = Data()
+        stderrDone.enter()
+        DispatchQueue.global(qos: .utility).async {
+            stderrData = errPipe.fileHandleForReading.readDataToEndOfFile()
+            stderrDone.leave()
         }
         p.terminationHandler = { [weak self] proc in
             let status = proc.terminationStatus
-            DispatchQueue.main.async { self?.exited(status: status, gen: gen) }
+            _ = stderrDone.wait(timeout: .now() + 1)
+            let stderr = String(decoding: stderrData.suffix(600), as: UTF8.self)
+            DispatchQueue.main.async { self?.exited(status: status, stderr: stderr, gen: gen) }
         }
 
         do {
@@ -173,8 +182,7 @@ final class ClaudeSession {
         }
         process = p
         stdin = inPipe.fileHandleForWriting
-        stdout = Data()
-        stderrTail = ""
+        parser = StreamParser()
     }
 
     private func write(_ object: [String: Any], to handle: FileHandle) {
@@ -190,63 +198,36 @@ final class ClaudeSession {
 
     private func ingest(_ data: Data, gen: Int) {
         guard gen == generation else { return }
-        stdout.append(data)
-        while let nl = stdout.firstIndex(of: 0x0A) {
-            let line = stdout[stdout.startIndex..<nl]
-            stdout.removeSubrange(stdout.startIndex...nl)
-            if let obj = try? JSONSerialization.jsonObject(with: line) as? [String: Any] {
-                handle(obj)
-            }
-        }
+        parser.feed(data).forEach(handle)
     }
 
-    private func ingestError(_ data: Data, gen: Int) {
-        guard gen == generation, let s = String(data: data, encoding: .utf8) else { return }
-        stderrTail = String((stderrTail + s).suffix(600))
-    }
-
-    private func handle(_ obj: [String: Any]) {
-        switch obj["type"] as? String {
-        case "system":
-            if obj["subtype"] as? String == "init", let id = obj["session_id"] as? String { sessionID = id }
-
-        case "stream_event":
-            guard let event = obj["event"] as? [String: Any], event["type"] as? String == "content_block_delta",
-                  let delta = event["delta"] as? [String: Any], delta["type"] as? String == "text_delta",
-                  let text = delta["text"] as? String else { return }
+    private func handle(_ message: StreamParser.Message) {
+        switch message {
+        case .sessionStarted(let id):
+            sessionID = id
+        case .textDelta(let text):
             onEvent?(.delta(text))
-
-        case "rate_limit_event":
-            let info = obj["rate_limit_info"] as? [String: Any]
-            let windows = info?["unifiedWindows"] as? [String: Any]
-            let fiveHour = windows?["five_hour"] as? [String: Any]
-            if let used = (fiveHour?["utilization"] ?? info?["utilization"]) as? Double {
-                onEvent?(.usage(fiveHour: used))
-            }
-
-        case "result":
+        case .usage(let fiveHour):
+            onEvent?(.usage(fiveHour: fiveHour))
+        case .result(let ok, let text):
             guard turnActive else { return }
             turnActive = false
             scheduleIdleShutdown()
             if stopRequested {
                 onEvent?(.finished(text: nil, error: nil, stopped: true))
-            } else if obj["is_error"] as? Bool == true || obj["subtype"] as? String != "success" {
-                let message = obj["result"] as? String ?? (obj["errors"] as? [String])?.first ?? "Claude returned an error."
-                onEvent?(.finished(text: nil, error: message, stopped: false))
+            } else if ok {
+                onEvent?(.finished(text: text, error: nil, stopped: false))
             } else {
-                onEvent?(.finished(text: obj["result"] as? String, error: nil, stopped: false))
+                onEvent?(.finished(text: nil, error: text ?? "Claude returned an error.", stopped: false))
             }
-
-        default:
-            break
         }
     }
 
-    private func exited(status: Int32, gen: Int) {
+    private func exited(status: Int32, stderr: String, gen: Int) {
         guard gen == generation else { return }
         process = nil
         stdin = nil
-        let tail = stderrTail.trimmingCharacters(in: .whitespacesAndNewlines)
+        let tail = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
         lastError = tail.isEmpty ? "claude exited (code \(status))." : tail
         if turnActive {
             turnActive = false
