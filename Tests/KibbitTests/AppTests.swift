@@ -57,8 +57,9 @@ struct SettingsTests {
         let second = AppSettings(defaults: defaults)
         #expect(first.seed == second.seed)
         #expect(first.seed <= UInt64(UInt32.max))
-        #expect(first.pet == .cat)
+        #expect(first.pet == second.pet, "the hatched species persists")
         #expect(first.model == .haiku)
+        #expect(!first.onboarded)
     }
 
     @Test func choicesPersist() {
@@ -82,7 +83,7 @@ struct SettingsTests {
         defaults.set("gpt", forKey: "model")
         defaults.set("not-a-number", forKey: "seed")
         let settings = AppSettings(defaults: defaults)
-        #expect(settings.pet == .cat)
+        #expect(PetKind.allCases.contains(settings.pet))
         #expect(settings.model == .haiku)
         #expect(settings.seed <= UInt64(UInt32.max))
     }

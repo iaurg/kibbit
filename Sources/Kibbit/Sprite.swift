@@ -74,6 +74,26 @@ enum Sprite {
         return out
     }
 
+    /// Crack pixels per hatch stage, drawn in outline color across the egg's middle.
+    static let eggCracks: [[(x: Int, y: Int)]] = [
+        [],
+        [(6, 8), (7, 7), (8, 8), (9, 7)],
+        [(4, 8), (5, 7), (6, 8), (7, 7), (8, 8), (9, 7), (10, 8), (11, 7), (7, 6), (8, 9)],
+    ]
+
+    static func eggCells(palette: PetPalette, wobble: Int = 0, crack: Int = 0) -> [Cell] {
+        let cracks = eggCracks[min(max(crack, 0), eggCracks.count - 1)]
+        var out: [Cell] = []
+        for (row, line) in PetKind.eggGrid.enumerated() {
+            for (col, key) in line.enumerated() {
+                let isCrack = key != "." && cracks.contains { $0.x == col && $0.y == row }
+                guard let color = palette.color(for: isCrack ? "o" : key) else { continue }
+                out.append(Cell(x: col + 1 + wobble, y: row + 1, color: color))
+            }
+        }
+        return out
+    }
+
     static func draw(_ cells: [Cell], in ctx: CGContext, pixel: CGFloat, originX: CGFloat = 0, originY: CGFloat = 0) {
         for cell in cells {
             ctx.setFillColor(cell.color.cgColor)

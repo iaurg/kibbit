@@ -13,7 +13,7 @@ struct ChatMessage: Identifiable, Equatable {
 
 @MainActor
 final class ChatStore: ObservableObject {
-    enum Page { case chat, settings }
+    enum Page { case chat, settings, onboarding }
 
     @Published var messages: [ChatMessage] = []
     @Published var input = ""
@@ -24,15 +24,20 @@ final class ChatStore: ObservableObject {
     @Published var page: Page = .chat
     @Published var focusTick = 0
     @Published private(set) var claudeStatus = "Looking for claude…"
+    /// Set when macOS rejects the chosen hotkey.
+    @Published var hotKeyProblem: String?
 
     let settings: AppSettings
     let animator: PetAnimator
+    let onboarding: Onboarding
     private let session: ClaudeSession
     private var binary: String?
 
     init(settings: AppSettings, animator: PetAnimator, workspace: URL = ClaudeSession.defaultWorkspace) {
         self.settings = settings
         self.animator = animator
+        onboarding = Onboarding(settings: settings, workspace: workspace)
+        if !settings.onboarded { page = .onboarding }
         session = ClaudeSession(config: .init(binary: "", model: settings.model.rawValue, token: settings.token), workspace: workspace)
         session.onEvent = { [weak self] event in
             MainActor.assumeIsolated { self?.handle(event) }
@@ -64,6 +69,21 @@ final class ChatStore: ObservableObject {
     func prepare() {
         animator.poke()
         session.warm()
+        focusTick += 1
+        if page == .onboarding, onboarding.step == .claude {
+            Task { await onboarding.checkClaude() }
+        }
+    }
+
+    func startOnboarding() {
+        onboarding.restart()
+        page = .onboarding
+    }
+
+    func finishOnboarding() {
+        onboarding.finish()
+        page = .chat
+        relocateClaude()
         focusTick += 1
     }
 

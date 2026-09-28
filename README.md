@@ -15,8 +15,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshot-chat.png" width="440" alt="Asking the pet a question">
-  <img src="docs/screenshot-settings.png" width="380" alt="Choosing a pet and rerolling its colors">
+  <img src="docs/demo.gif" width="446" alt="Kibbit demo: hatching a legendary axolotl, connecting Claude, testing the hotkey, asking a question from the menu bar, and rerolling colors">
 </p>
 
 <p align="center">
@@ -40,6 +39,17 @@
 ./scripts/build-app.sh            # → build/Kibbit.app
 ./scripts/build-app.sh --install  # → /Applications/Kibbit.app and launch
 ```
+
+## First launch
+
+Kibbit opens a short setup the first time it runs:
+
+1. **Hatch** your egg. The species and colors are random. You can copy a share card to show it off.
+2. **Connect Claude.** Kibbit checks that Claude Code is installed and signed in. If something is missing, one button opens Terminal with the official installer or `claude auth login` already running, and the page updates on its own when you're done.
+3. **Try the hotkey.** Press it once to prove it works. If another app (Claude Desktop, ChatGPT and Raycast often use `⌥ Space`) catches it first, pick a different one.
+4. **Done.** Launch at login is on by default.
+
+To run setup again, right-click the pet and choose **Run Setup…**, or use the button in Settings.
 
 ## Use
 

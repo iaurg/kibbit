@@ -28,7 +28,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hosting.frame = NSRect(origin: .zero, size: RootView.size)
         panel = PetPanel(contentView: hosting, size: RootView.size)
         panel.appearance = NSAppearance(named: .darkAqua)
-        panel.onDismiss = { [weak self] in self?.dismiss() }
+        panel.onDismiss = { [weak self] in
+            // During setup the user hops to Terminal to install or sign in; keep the panel up.
+            guard self?.store.page != .onboarding else { return }
+            self?.dismiss()
+        }
 
         animator.legendary = settings.palette.rarity == .legendary
         Publishers.CombineLatest3(animator.$frame, settings.$pet, settings.$seed)
@@ -44,24 +48,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { [weak self] _ in self?.store.applyConfig() }
             .store(in: &bag)
 
-        HotKey.onPress = { [weak self] in self?.toggle() }
+        HotKey.onPress = { [weak self] in self?.hotKeyPressed() }
         settings.$hotKeyID
-            .sink { [weak self] id in self?.hotKey.register(HotKeyPreset.find(id)) }
+            .sink { [weak self] id in self?.registerHotKey(HotKeyPreset.find(id)) }
             .store(in: &bag)
 
         store.prepare()
 
         // Launch args for scripting/smoke tests: `--show` opens the panel, `--settings` opens
-        // it on the settings page, `--ask "…"` also sends a question.
+        // it on the settings page, `--onboarding [step]` opens setup, `--ask "…"` also sends a question.
         let args = CommandLine.arguments
         if args.contains("--settings") { store.page = .settings }
-        if args.contains("--show") || args.contains("--ask") || args.contains("--settings") {
+        if let i = args.firstIndex(of: "--onboarding") {
+            store.startOnboarding()
+            let name = i + 1 < args.count ? args[i + 1].lowercased() : ""
+            if let step = Onboarding.Step.allCases.first(where: { "\($0)".lowercased() == name }), step != .hatch {
+                store.onboarding.hatch()
+                store.onboarding.go(to: step)
+            }
+        }
+        // First launch: introduce ourselves instead of sitting silently in the menu bar.
+        if store.page == .onboarding || args.contains("--show") || args.contains("--ask") || args.contains("--settings") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.show() }
         }
         if let i = args.firstIndex(of: "--ask"), i + 1 < args.count {
             store.input = args[i + 1]
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { self.store.send() }
         }
+    }
+
+    private func registerHotKey(_ preset: HotKeyPreset) {
+        let status = hotKey.register(preset)
+        store.onboarding.hotKeyChanged()
+        store.onboarding.registrationResult(status)
+        store.hotKeyProblem = status == noErr ? nil : "macOS rejected this shortcut (error \(status)). Choose another."
+    }
+
+    private func hotKeyPressed() {
+        // Onboarding's "try it now" step: count the press instead of toggling the panel away.
+        if store.page == .onboarding, store.onboarding.isWaitingForHotKey {
+            store.onboarding.hotKeyPressed()
+            if !panel.isVisible { show() }
+            return
+        }
+        toggle()
     }
 
     @objc private func statusClicked() {
@@ -100,6 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(withTitle: "Ask…", action: #selector(openFromMenu), keyEquivalent: "").target = self
         menu.addItem(withTitle: "New Chat", action: #selector(newChatFromMenu), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Settings…", action: #selector(settingsFromMenu), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Run Setup…", action: #selector(setupFromMenu), keyEquivalent: "").target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Kibbit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         statusItem.menu = menu
@@ -111,6 +142,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func openFromMenu() { store.page = .chat; show() }
     @objc private func newChatFromMenu() { store.newChat(); store.page = .chat; show() }
     @objc private func settingsFromMenu() { store.page = .settings; show() }
+    @objc private func setupFromMenu() { store.startOnboarding(); show() }
 
     func applicationWillTerminate(_ notification: Notification) {
         hotKey.unregister()

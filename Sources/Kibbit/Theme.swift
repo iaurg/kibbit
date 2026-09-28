@@ -80,13 +80,33 @@ struct PetSpriteView: View {
     var pixel: CGFloat = 3
 
     var body: some View {
+        CellCanvas(cells: Sprite.cells(pet: pet, palette: palette, frame: frame), pixel: pixel)
+            .accessibilityLabel(pet.displayName)
+    }
+}
+
+/// Draws sprite cells on the shared 22×18 canvas.
+struct CellCanvas: View {
+    let cells: [Cell]
+    var pixel: CGFloat = 3
+
+    var body: some View {
         Canvas { ctx, _ in
-            for cell in Sprite.cells(pet: pet, palette: palette, frame: frame) {
+            for cell in cells {
                 ctx.fill(Path(CGRect(x: CGFloat(cell.x) * pixel, y: CGFloat(cell.y) * pixel, width: pixel, height: pixel)),
                          with: .color(cell.color.color))
             }
         }
         .frame(width: CGFloat(Sprite.width) * pixel, height: CGFloat(Sprite.height) * pixel)
-        .accessibilityLabel(pet.displayName)
+    }
+}
+
+extension Rarity {
+    var color: Color {
+        switch self {
+        case .common: Theme.muted
+        case .rare: Color(red: 0.45, green: 0.75, blue: 1)
+        case .legendary: Color(red: 1, green: 0.85, blue: 0.3)
+        }
     }
 }

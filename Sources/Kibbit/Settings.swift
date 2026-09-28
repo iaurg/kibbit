@@ -37,10 +37,19 @@ final class AppSettings: ObservableObject {
     @Published var hotKeyID: String { didSet { defaults.set(hotKeyID, forKey: "hotKey") } }
     @Published var claudePath: String { didSet { defaults.set(claudePath, forKey: "claudePath") } }
     @Published var token: String { didSet { Keychain.set(token, account: "oauth-token") } }
+    @Published var onboarded: Bool { didSet { defaults.set(onboarded, forKey: "onboarded") } }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        pet = PetKind(rawValue: defaults.string(forKey: "pet") ?? "") ?? .cat
+        onboarded = defaults.bool(forKey: "onboarded")
+        if let stored = defaults.string(forKey: "pet").flatMap(PetKind.init(rawValue:)) {
+            pet = stored
+        } else {
+            // A new install hatches a surprise species; it can be changed later in Settings.
+            let hatched = PetKind.allCases.randomElement()!
+            pet = hatched
+            defaults.set(hatched.rawValue, forKey: "pet")
+        }
         model = ClaudeModel(rawValue: defaults.string(forKey: "model") ?? "") ?? .haiku
         hotKeyID = defaults.string(forKey: "hotKey") ?? HotKeyPreset.all[0].id
         claudePath = defaults.string(forKey: "claudePath") ?? ""
@@ -94,9 +103,13 @@ final class HotKey {
     private static var handlerInstalled = false
     private var ref: EventHotKeyRef?
 
-    func register(_ preset: HotKeyPreset) {
+    /// Returns Carbon's status. Note it only reports clashes within this app: a combo already
+    /// taken by another app (Claude Desktop, ChatGPT…) still returns noErr, which is why
+    /// onboarding asks the user to actually press it.
+    @discardableResult
+    func register(_ preset: HotKeyPreset) -> OSStatus {
         unregister()
-        guard preset.id != "none" else { return }
+        guard preset.id != "none" else { return noErr }
         if !Self.handlerInstalled {
             var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
             InstallEventHandler(GetApplicationEventTarget(), { _, _, _ in
@@ -106,7 +119,9 @@ final class HotKey {
             Self.handlerInstalled = true
         }
         let id = EventHotKeyID(signature: OSType(0x4B42_4254), id: 1)
-        RegisterEventHotKey(preset.keyCode, preset.modifiers, id, GetApplicationEventTarget(), 0, &ref)
+        let status = RegisterEventHotKey(preset.keyCode, preset.modifiers, id, GetApplicationEventTarget(), 0, &ref)
+        if status != noErr { ref = nil }
+        return status
     }
 
     func unregister() {
