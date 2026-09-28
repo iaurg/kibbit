@@ -35,6 +35,10 @@ struct ChatView: View {
         VStack(spacing: 0) {
             ChatHeader(store: store, settings: settings, animator: store.animator)
             PixelRule()
+            if store.menuBarIconHidden, !store.hiddenIconNoticeDismissed {
+                HiddenIconNotice(store: store, hotKey: settings.hotKey, color: settings.palette.body.color)
+                PixelRule()
+            }
             messages
             PixelRule()
             inputBar
@@ -159,6 +163,38 @@ private struct ChatHeader: View {
         case .error: "\(model) · OOPS"
         default: "\(model) · READY"
         }
+    }
+}
+
+/// macOS hides status items that don't fit beside the notch; tell the user and offer a fix.
+private struct HiddenIconNotice: View {
+    @ObservedObject var store: ChatStore
+    let hotKey: HotKeyPreset
+    let color: Color
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                PixelText("I'M HIDDEN IN YOUR MENU BAR", pixel: 1.5, color: color)
+                Text(hotKey.id == "none"
+                    ? "It's full, so macOS tucked my icon away (often behind the notch)."
+                    : "It's full, so macOS tucked my icon away (often behind the notch). \(hotKey.label) still opens me.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+            Button { store.moveMenuBarIconRight?() } label: { PixelText("MOVE ME", pixel: 1.5) }
+                .buttonStyle(PixelButtonStyle())
+            Button { store.hiddenIconNoticeDismissed = true } label: {
+                PixelText(icon: PixelFont.Icon.close, pixel: 1.5, color: Theme.muted)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 6)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Theme.code)
     }
 }
 

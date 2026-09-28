@@ -156,7 +156,7 @@ struct PixelFontTests {
             "SETUP", "SKIP", "NEXT", "HATCH", "IT'S HATCHING!", "SOMETHING IS INSIDE...", "COPY SHARE CARD", "CARD COPIED",
             "CONNECT CLAUDE", "CHECKING...", "INSTALL IN TERMINAL", "SIGN IN IN TERMINAL", "YOU'RE CONNECTED!",
             "SUMMON ME ANYWHERE", "TRY IT NOW", "GOT IT!", "ALL SET!", "START ASKING", "SKIP FOR NOW",
-            "HATCHED IN KIBBIT", "RUN SETUP AGAIN",
+            "HATCHED IN KIBBIT", "RUN SETUP AGAIN", "I'M HIDDEN IN YOUR MENU BAR", "MOVE ME",
             "bash", "zsh", "sh", "swift", "python", "js", "ts", "json", "yaml", "go", "rust", "sql", "c++", "objective-c",
         ]
         strings += PetKind.allCases.map(\.displayName)
