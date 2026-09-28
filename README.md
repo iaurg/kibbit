@@ -28,17 +28,30 @@
 - A tiny chat with streamed answers, copyable code blocks, and an optional clipboard attachment for context.
 - The energy bar shows how much of your 5-hour subscription window is left.
 
-## Requirements
-
-- macOS 14+ and the Swift toolchain (Command Line Tools are enough; you don't need Xcode)
-- [Claude Code](https://claude.com/claude-code), signed in (`claude` → `/login`)
-
-## Build & run
+## Install
 
 ```bash
-./scripts/build-app.sh            # → build/Kibbit.app
-./scripts/build-app.sh --install  # → /Applications/Kibbit.app and launch
+curl -fsSL https://raw.githubusercontent.com/iaurg/kibbit/main/install.sh | bash
 ```
+
+That downloads the latest release, checks its SHA-256, puts `Kibbit.app` in `/Applications` and opens it. Setup takes it from there, including installing and signing in to Claude Code if you haven't yet.
+
+- **Requires:** macOS 14 or newer, on Apple Silicon or Intel, and a Claude Pro or Max plan.
+- **Update:** run the same command again.
+- **Specific version:** `curl -fsSL https://raw.githubusercontent.com/iaurg/kibbit/main/install.sh | KIBBIT_VERSION=v0.1.0 bash`
+- **Uninstall:** `curl -fsSL https://raw.githubusercontent.com/iaurg/kibbit/main/install.sh | bash -s -- --uninstall`
+
+<details>
+<summary>Why a script instead of a download link?</summary>
+
+Kibbit is open source and isn't notarized by Apple. When a browser downloads an app, it marks it as quarantined, and macOS then refuses to open it until you approve it in System Settings. `curl` doesn't add that mark, so the script's install opens normally. [Read the script](install.sh) before running it; it's short.
+
+If you prefer to download the zip from [Releases](https://github.com/iaurg/kibbit/releases) yourself, clear the quarantine mark after unzipping:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Kibbit.app
+```
+</details>
 
 ## First launch
 
@@ -75,7 +88,12 @@ The warm process shuts down after 15 idle minutes. Your next question resumes th
 
 ## Development
 
+Building from source needs the Swift toolchain. The Command Line Tools are enough; you don't need Xcode.
+
 ```bash
+./scripts/build-app.sh               # → build/Kibbit.app
+./scripts/build-app.sh --install     # → /Applications/Kibbit.app and launch
+UNIVERSAL=1 ./scripts/build-app.sh   # Apple Silicon + Intel, as releases are built
 swift build
 ./scripts/test.sh                                    # Swift Testing suite
 .build/debug/Kibbit --render-gallery /tmp/pets.png   # all pets × seeds × animation frames
@@ -95,18 +113,17 @@ Sprites live in `Sources/Kibbit/Pets.swift` as the left halves of 16×16 grids, 
 
 ### CI/CD
 
-- **[CI](.github/workflows/ci.yml)** runs on every pull request and every push to `main`. It runs the tests, bundles `Kibbit.app`, checks the Info.plist and code signature, launches the release binary, and uploads the app as a build artifact.
-- **[Release](.github/workflows/release.yml)** runs when a `v*` tag is pushed. It runs the tests again, builds the app with the tag as its version, and publishes a zipped `Kibbit.app` to GitHub Releases:
+- **[CI](.github/workflows/ci.yml)** runs on every pull request and every push to `main`. It:
+  - runs the tests
+  - builds a universal `Kibbit.app` and checks its Info.plist, architectures and code signature
+  - launches the release binary
+  - installs and uninstalls the packaged zip with `install.sh`
+  - runs shellcheck on every script
+- **[Release](.github/workflows/release.yml)** runs when a `v*` tag is pushed. It repeats those checks and then publishes `Kibbit.zip` and `Kibbit.zip.sha256` to GitHub Releases, which is where `install.sh` downloads from:
 
   ```bash
   git tag v0.1.0 && git push origin v0.1.0
   ```
-
-Release builds are ad-hoc signed, not notarized. After downloading one, clear the quarantine flag once:
-
-```bash
-xattr -dr com.apple.quarantine /Applications/Kibbit.app
-```
 
 ## License
 

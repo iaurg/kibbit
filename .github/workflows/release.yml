@@ -11,24 +11,27 @@ jobs:
   release:
     name: Test, build & publish
     runs-on: macos-15
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
       - name: Test
         run: ./scripts/test.sh
 
-      - name: Build app
+      - name: Build universal app
         env:
-          VERSION: ${{ github.ref_name }}
+          TAG: ${{ github.ref_name }}
           BUILD_NUMBER: ${{ github.run_number }}
-        run: |
-          export VERSION="${VERSION#v}"
-          ./scripts/build-app.sh
-          codesign --verify --strict build/Kibbit.app
-          ditto -c -k --keepParent build/Kibbit.app "Kibbit-${VERSION}.zip"
+        run: VERSION="${TAG#v}" UNIVERSAL=1 ./scripts/build-app.sh
 
+      - name: Package & test installer
+        run: ./scripts/package.sh
+
+      # Fixed asset names so install.sh can use releases/latest/download/Kibbit.zip.
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" Kibbit-*.zip --title "Kibbit ${{ github.ref_name }}" --generate-notes
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" dist/Kibbit.zip dist/Kibbit.zip.sha256 \
+            --title "Kibbit $TAG" --generate-notes
